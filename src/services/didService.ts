@@ -1,8 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
 interface StreamResponse {
-  streamUrl: string;
-  sessionId: string;
+  url: string;
+  id: string;
 }
 
 class DIDService {
@@ -23,15 +23,7 @@ class DIDService {
     }
   }
 
-  async stopStream(sessionId: string): Promise<void> {
-    try {
-      await supabase.functions.invoke('did-stream-stop', {
-        body: { sessionId }
-      });
-    } catch (error) {
-      console.error('Error in stopStream:', error);
-    }
-  }
+  // No need for stopStream method with the talks endpoint
 }
 
 export const didService = new DIDService();

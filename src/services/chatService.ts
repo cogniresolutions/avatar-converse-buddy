@@ -23,15 +23,10 @@ class ChatService {
       // Get AI response from Azure OpenAI
       const aiResponseText = await azureOpenAIService.sendMessage(content);
       
-      // Create D-ID stream with the AI response
-      const { streamUrl, sessionId } = await didService.createStream(aiResponseText);
+      // Create D-ID talk with the AI response
+      const { url } = await didService.createStream(aiResponseText);
       
-      // Stop previous stream if exists
-      if (this.currentStreamUrl) {
-        await didService.stopStream(this.sessionId);
-      }
-      
-      this.currentStreamUrl = streamUrl;
+      this.currentStreamUrl = url;
       
       const aiResponse: Message = {
         content: aiResponseText,
@@ -59,10 +54,8 @@ class ChatService {
   }
 
   async cleanup() {
-    if (this.currentStreamUrl) {
-      await didService.stopStream(this.sessionId);
-      this.currentStreamUrl = null;
-    }
+    // No need to stop the stream with the talks endpoint
+    this.currentStreamUrl = null;
   }
 }
 

@@ -22,10 +22,10 @@ serve(async (req) => {
       throw new Error('DID API key is not configured');
     }
 
-    console.log('Creating D-ID stream with text:', text);
+    console.log('Creating D-ID talk with text:', text);
     
-    // Create a new talk session
-    const response = await fetch('https://api.d-id.com/talks/streams', {
+    // Create a new talk
+    const response = await fetch('https://api.d-id.com/talks', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${btoa(apiKey + ':')}`,
@@ -66,9 +66,10 @@ serve(async (req) => {
       throw new Error('Invalid response from D-ID API');
     }
 
+    // Return the talk ID and result URL
     return new Response(JSON.stringify({
-      streamUrl: data.id,
-      sessionId: data.session_id
+      id: data.id,
+      url: data.result_url
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

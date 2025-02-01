@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface VideoUploaderProps {
   onUpload: (file: File) => Promise<void>;
@@ -11,6 +13,7 @@ export const VideoUploader = ({ onUpload }: VideoUploaderProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const { toast } = useToast();
 
   const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
   const SUPPORTED_FORMATS = ['video/mp4', 'video/webm', 'video/quicktime'];
@@ -42,7 +45,11 @@ export const VideoUploader = ({ onUpload }: VideoUploaderProps) => {
         validateFile(file);
         await handleFileUpload(file);
       } catch (error) {
-        alert(error.message);
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
       }
     }
   };
@@ -54,13 +61,23 @@ export const VideoUploader = ({ onUpload }: VideoUploaderProps) => {
         validateFile(file);
         await handleFileUpload(file);
       } catch (error) {
-        alert(error.message);
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
       }
     }
   };
 
   const handleFileUpload = async (file: File) => {
     try {
+      // Check if user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('Please sign in to upload videos');
+      }
+
       setIsUploading(true);
       setUploadProgress(0);
       
@@ -73,6 +90,18 @@ export const VideoUploader = ({ onUpload }: VideoUploaderProps) => {
       
       clearInterval(progressInterval);
       setUploadProgress(100);
+      
+      toast({
+        title: "Success",
+        description: "Video uploaded successfully",
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to upload video. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setTimeout(() => {
         setIsUploading(false);

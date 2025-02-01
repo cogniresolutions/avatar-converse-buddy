@@ -114,9 +114,8 @@ serve(async (req) => {
       }
     }
 
-    // For non-WebSocket requests, generate a unique WebSocket URL
-    const wsProtocol = req.url.startsWith('https') ? 'wss' : 'ws';
-    const wsUrl = `${wsProtocol}://${new URL(req.url).host}/functions/v1/azure-openai-realtime`;
+    // For non-WebSocket requests, always use WSS protocol
+    const wsUrl = `wss://${new URL(req.url).host}/functions/v1/azure-openai-realtime`;
     
     console.log('Generated WebSocket URL:', wsUrl);
     

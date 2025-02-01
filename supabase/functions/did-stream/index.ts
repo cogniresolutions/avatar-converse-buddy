@@ -17,6 +17,13 @@ serve(async (req) => {
   try {
     const { text } = await req.json();
     
+    if (!apiKey) {
+      console.error('DID_API_KEY is not set');
+      throw new Error('DID API key is not configured');
+    }
+
+    console.log('Creating D-ID stream with text:', text);
+    
     // Create a new talk session
     const response = await fetch('https://api.d-id.com/talks/streams', {
       method: 'POST',
@@ -40,11 +47,21 @@ serve(async (req) => {
       }),
     });
 
+    const responseText = await response.text();
+    console.log('D-ID API Response:', response.status, responseText);
+
     if (!response.ok) {
-      throw new Error(`D-ID API error: ${response.statusText}`);
+      throw new Error(`D-ID API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`);
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse D-ID API response:', e);
+      throw new Error('Invalid response from D-ID API');
+    }
+
     return new Response(JSON.stringify({
       streamUrl: data.id,
       sessionId: data.session_id
@@ -53,7 +70,10 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error in did-stream function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      details: 'Please check the D-ID API key configuration and request format'
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

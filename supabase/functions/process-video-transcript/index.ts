@@ -30,23 +30,118 @@ serve(async (req) => {
 
     if (sessionError) throw sessionError;
 
-    // Use Azure Speech Service to get transcript
-    const speechEndpoint = Deno.env.get("AZURE_SPEECH_ENDPOINT");
-    const speechKey = Deno.env.get("AZURE_SPEECH_KEY");
+    console.log("Processing video:", session.video_url);
 
-    // TODO: Implement actual transcript extraction using Azure Speech Service
-    const transcript = "Sample transcript - implement actual transcription";
+    // Get Azure Speech Service token
+    const tokenResponse = await fetch(
+      `${Deno.env.get("AZURE_SPEECH_ENDPOINT")}/sts/v1.0/issuetoken`,
+      {
+        method: "POST",
+        headers: {
+          "Ocp-Apim-Subscription-Key": Deno.env.get("AZURE_SPEECH_KEY") ?? "",
+        },
+      }
+    );
 
-    // Update the session with the transcript
-    const { error: updateError } = await supabaseClient
-      .from("training_sessions")
-      .update({ transcript })
-      .eq("id", sessionId);
+    if (!tokenResponse.ok) {
+      throw new Error("Failed to get Azure token");
+    }
 
-    if (updateError) throw updateError;
+    const accessToken = await tokenResponse.text();
+
+    // Create transcription request
+    const transcriptionResponse = await fetch(
+      `${Deno.env.get("AZURE_SPEECH_ENDPOINT")}/speechtotext/v3.0/transcriptions`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          contentUrls: [session.video_url],
+          properties: {
+            diarizationEnabled: true,
+            wordLevelTimestampsEnabled: true,
+            punctuationMode: "DictatedAndAutomatic",
+            profanityFilterMode: "Masked",
+          },
+          locale: "en-US",
+        }),
+      }
+    );
+
+    if (!transcriptionResponse.ok) {
+      throw new Error("Failed to start transcription");
+    }
+
+    const transcriptionData = await transcriptionResponse.json();
+    console.log("Transcription job created:", transcriptionData);
+
+    // Start background task to poll for completion
+    EdgeRuntime.waitUntil(
+      (async () => {
+        try {
+          let transcriptionComplete = false;
+          while (!transcriptionComplete) {
+            // Check status every 30 seconds
+            await new Promise((resolve) => setTimeout(resolve, 30000));
+
+            const statusResponse = await fetch(transcriptionData.self, {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            });
+
+            if (!statusResponse.ok) {
+              throw new Error("Failed to check transcription status");
+            }
+
+            const status = await statusResponse.json();
+            console.log("Transcription status:", status.status);
+
+            if (status.status === "Succeeded") {
+              // Get the transcript
+              const filesResponse = await fetch(status.links.files, {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              });
+
+              if (!filesResponse.ok) {
+                throw new Error("Failed to get transcript files");
+              }
+
+              const files = await filesResponse.json();
+              const transcriptUrl = files.values.find(
+                (f: any) => f.kind === "Transcription"
+              )?.links?.contentUrl;
+
+              if (transcriptUrl) {
+                const transcriptResponse = await fetch(transcriptUrl);
+                const transcript = await transcriptResponse.text();
+
+                // Update the session with the transcript
+                const { error: updateError } = await supabaseClient
+                  .from("training_sessions")
+                  .update({ transcript })
+                  .eq("id", sessionId);
+
+                if (updateError) throw updateError;
+                transcriptionComplete = true;
+              }
+            } else if (status.status === "Failed") {
+              throw new Error("Transcription failed");
+            }
+          }
+        } catch (error) {
+          console.error("Background task error:", error);
+        }
+      })()
+    );
 
     return new Response(
-      JSON.stringify({ message: "Transcript processed successfully" }),
+      JSON.stringify({ message: "Transcript processing started" }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }

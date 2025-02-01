@@ -19,14 +19,20 @@ const Index = () => {
   const handleSendMessage = async (content: string) => {
     try {
       setIsLoading(true);
+      // Add user message immediately
       setMessages((prev) => [...prev, { content, isAi: false }]);
       
+      // Get AI response
       const response = await chatService.sendMessage(content);
+      
+      // Add AI response to messages
       setMessages((prev) => [...prev, response]);
       
-      // Update stream URL for video avatar
-      setStreamUrl(chatService.getCurrentStreamUrl() || undefined);
+      // Update video stream URL
+      const currentStreamUrl = chatService.getCurrentStreamUrl();
+      setStreamUrl(currentStreamUrl || undefined);
     } catch (error) {
+      console.error('Error in handleSendMessage:', error);
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
@@ -37,9 +43,9 @@ const Index = () => {
     }
   };
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Cleanup when component unmounts
       chatService.cleanup();
     };
   }, []);
@@ -49,7 +55,7 @@ const Index = () => {
       <main className="flex-1 container mx-auto p-4 flex flex-col gap-6">
         <VideoAvatar streamUrl={streamUrl} />
         
-        <div className="flex-1 overflow-y-auto space-y-4 min-h-[300px] max-h-[500px] p-4">
+        <div className="flex-1 overflow-y-auto space-y-4 min-h-[300px] max-h-[500px] p-4 rounded-lg border bg-white">
           {messages.map((message, index) => (
             <ChatMessage
               key={index}

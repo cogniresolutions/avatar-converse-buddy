@@ -26,28 +26,35 @@ class ChatService {
       return;
     }
 
+    // Construct WebSocket URL based on environment
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = import.meta.env.PROD 
-      ? `wss://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/did-stream`
+      ? `${wsProtocol}//${window.location.host}/functions/v1/did-stream`
       : 'ws://localhost:54321/functions/v1/did-stream';
 
     try {
+      console.log('Attempting to connect to WebSocket:', wsUrl);
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         console.log('WebSocket connected successfully');
-        this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+        this.reconnectAttempts = 0;
       };
 
       this.ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.error) {
-          console.error('WebSocket error:', data.error);
-          return;
-        }
-        if (data.url) {
-          console.log('Received new stream URL:', data.url);
-          this.currentStreamUrl = data.url;
-          this.onStreamUpdate?.(data.url);
+        try {
+          const data = JSON.parse(event.data);
+          if (data.error) {
+            console.error('WebSocket error:', data.error);
+            return;
+          }
+          if (data.url) {
+            console.log('Received new stream URL:', data.url);
+            this.currentStreamUrl = data.url;
+            this.onStreamUpdate?.(data.url);
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
         }
       };
 
@@ -80,7 +87,7 @@ class ChatService {
         console.log('Sending message to D-ID:', aiResponseText);
         this.ws.send(JSON.stringify({ text: aiResponseText }));
       } else {
-        console.error('WebSocket is not connected, attempting to reconnect...');
+        console.error('WebSocket is not connected');
         this.setupWebSocket();
         throw new Error('WebSocket connection is not available');
       }
@@ -100,6 +107,10 @@ class ChatService {
 
   setStreamUpdateCallback(callback: (url: string) => void) {
     this.onStreamUpdate = callback;
+    // If we already have a stream URL, call the callback immediately
+    if (this.currentStreamUrl) {
+      callback(this.currentStreamUrl);
+    }
   }
 
   getCurrentStreamUrl(): string | null {

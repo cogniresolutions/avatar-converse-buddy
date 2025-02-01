@@ -68,6 +68,27 @@ const Auth = () => {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-50 to-white p-4">
       <Card className="w-full max-w-md">
@@ -124,6 +145,27 @@ const Auth = () => {
               </form>
             </TabsContent>
           </Tabs>
+          <div className="mt-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-muted-foreground">
+                  Or continue with
+                </span>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              type="button"
+              disabled={loading}
+              className="w-full mt-4"
+              onClick={handleGoogleSignIn}
+            >
+              {loading ? "Loading..." : "Sign in with Google"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -28,7 +28,7 @@ serve(async (req) => {
     const response = await fetch('https://api.d-id.com/talks/streams', {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${apiKey}`,
+        'Authorization': `Basic ${btoa(apiKey + ':')}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -36,6 +36,10 @@ serve(async (req) => {
         script: {
           type: "text",
           input: text,
+          provider: {
+            type: "microsoft",
+            voice_id: "en-US-JennyNeural"
+          }
         },
         config: {
           stitch: true,

@@ -43,7 +43,7 @@ export function useTrainingSession() {
 
       // Create session in database
       const { error: dbError, data: sessionData } = await supabase
-        .from('training_sessions')
+        .from("training_sessions")
         .insert({
           user_id: userId,
           title: file.name,

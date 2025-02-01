@@ -26,13 +26,21 @@ const Auth = () => {
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
-      if (error) throw error;
+      if (error) {
+        console.error('Auth error:', error);
+        throw error;
+      }
     } catch (error: any) {
+      console.error('Sign in error:', error);
       toast({
-        title: "Error",
-        description: error.message,
+        title: "Connection Error",
+        description: "Unable to connect to authentication service. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -55,7 +63,7 @@ const Auth = () => {
             className="w-full"
             onClick={handleGoogleSignIn}
           >
-            {loading ? "Loading..." : "Sign in with Google"}
+            {loading ? "Connecting..." : "Sign in with Google"}
           </Button>
         </CardContent>
       </Card>

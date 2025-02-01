@@ -48,7 +48,7 @@ export class SessionManager {
 
       const connectionTimeout = setTimeout(() => {
         if (this.connectionState === 'connecting') {
-          console.error('WebSocket connection timeout');
+          console.warn('WebSocket connection timeout, will retry');
           this.ws?.close();
         }
       }, 5000);
@@ -95,6 +95,7 @@ export class SessionManager {
     this.ws.onerror = (error) => {
       console.error('WebSocket error:', error);
       this.connectionState = 'disconnected';
+      this.handleReconnection();
     };
 
     this.ws.onclose = () => {
@@ -105,9 +106,13 @@ export class SessionManager {
   }
 
   private handleReconnection(): void {
+    if (this.connectionState === 'failed') return;
+    
     this.connectionState = 'disconnected';
     this.reconnectAttempts++;
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
+    
+    console.log(`Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
     setTimeout(() => this.setupWebSocket(), delay);
   }
 

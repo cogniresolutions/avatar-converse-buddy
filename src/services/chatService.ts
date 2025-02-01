@@ -14,6 +14,7 @@ class ChatService {
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
   private reconnectDelay: number = 2000;
+  private baseUrl: string = 'https://persona--zw6su7w.graygrass-5ab083e6.eastus.azurecontainerapps.io';
 
   constructor() {
     this.sessionId = crypto.randomUUID();
@@ -23,23 +24,30 @@ class ChatService {
   private setupWebSocket() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('Max reconnection attempts reached');
+      // Set the initial video URL even if WebSocket fails
+      const videoUrl = `${this.baseUrl}/video`;
+      this.currentStreamUrl = videoUrl;
+      this.onStreamUpdate?.(videoUrl);
       return;
     }
 
     try {
       // Use Azure Container app endpoint for video stream
-      const wsUrl = `wss://persona--zw6su7w.graygrass-5ab083e6.eastus.azurecontainerapps.io/video`;
+      const wsUrl = `${this.baseUrl}/video`;
+      const videoUrl = wsUrl;
 
       console.log('Attempting to connect to WebSocket:', wsUrl);
-      this.ws = new WebSocket(wsUrl);
+      
+      // Set initial video URL immediately
+      this.currentStreamUrl = videoUrl;
+      this.onStreamUpdate?.(videoUrl);
+
+      // Try WebSocket connection for real-time updates
+      this.ws = new WebSocket(wsUrl.replace('http', 'ws'));
 
       this.ws.onopen = () => {
         console.log('WebSocket connected successfully');
         this.reconnectAttempts = 0;
-        // Set initial video URL with the pre-trained video
-        const videoUrl = 'https://persona--zw6su7w.graygrass-5ab083e6.eastus.azurecontainerapps.io/video';
-        this.currentStreamUrl = videoUrl;
-        this.onStreamUpdate?.(videoUrl);
       };
 
       this.ws.onmessage = (event) => {
@@ -90,7 +98,6 @@ class ChatService {
       } else {
         console.error('WebSocket is not connected');
         this.setupWebSocket();
-        throw new Error('WebSocket connection is not available');
       }
       
       const aiResponse: Message = {

@@ -36,7 +36,7 @@ class ChatService {
       this.ws.onopen = () => {
         console.log('WebSocket connected successfully');
         this.reconnectAttempts = 0;
-        // Set initial video URL
+        // Set initial video URL with the pre-trained video
         const videoUrl = 'https://persona--zw6su7w.graygrass-5ab083e6.eastus.azurecontainerapps.io/video';
         this.currentStreamUrl = videoUrl;
         this.onStreamUpdate?.(videoUrl);
@@ -83,7 +83,7 @@ class ChatService {
       // Get AI response from Azure OpenAI
       const aiResponseText = await azureOpenAIService.sendMessage(content);
       
-      // Send the AI response to WebSocket
+      // Send the AI response to WebSocket for video synchronization
       if (this.ws?.readyState === WebSocket.OPEN) {
         console.log('Sending message to WebSocket:', aiResponseText);
         this.ws.send(JSON.stringify({ text: aiResponseText }));

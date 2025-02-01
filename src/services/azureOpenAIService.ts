@@ -23,7 +23,11 @@ class AzureOpenAIService {
     }
   }
 
-  async sendMessage(message: string, systemPrompt: string = "You are a helpful AI assistant."): Promise<string> {
+  async sendMessage(message: string): Promise<string> {
+    const systemPrompt = `You are an AI assistant trained to engage in natural conversations while being displayed as a video avatar. 
+    Keep your responses concise, engaging, and natural as if speaking in a video call. 
+    Maintain a friendly and professional tone, and remember that your responses will be converted to speech and lip-synced with the video.`;
+
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: message }

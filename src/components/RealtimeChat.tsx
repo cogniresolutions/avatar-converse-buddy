@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { PhoneCall, Mic } from 'lucide-react';
 
 interface Message {
   text: string;
@@ -15,7 +16,10 @@ export const RealtimeChat = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -23,6 +27,7 @@ export const RealtimeChat = () => {
       if (wsRef.current) {
         wsRef.current.close();
       }
+      stopRecording();
     };
   }, []);
 
@@ -98,15 +103,84 @@ export const RealtimeChat = () => {
     }
   };
 
-  const sendMessage = async () => {
-    if (!inputMessage.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+          const base64Audio = reader.result?.toString().split(',')[1];
+          if (base64Audio) {
+            try {
+              const { data, error } = await supabase.functions.invoke('voice-to-text', {
+                body: { audio: base64Audio }
+              });
+
+              if (error) throw error;
+              if (data.text) {
+                sendMessage(data.text);
+              }
+            } catch (error) {
+              console.error('Error processing voice:', error);
+              toast({
+                title: "Error",
+                description: "Failed to process voice message",
+                variant: "destructive",
+              });
+            }
+          }
+        };
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      toast({
+        title: "Recording",
+        description: "Voice recording started",
+      });
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start recording",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
+      toast({
+        title: "Recording Stopped",
+        description: "Processing your message...",
+      });
+    }
+  };
+
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       return;
     }
 
     try {
       setIsLoading(true);
-      setMessages(prev => [...prev, { text: inputMessage, isAi: false }]);
-      wsRef.current.send(JSON.stringify({ text: inputMessage }));
+      setMessages(prev => [...prev, { text, isAi: false }]);
+      wsRef.current.send(JSON.stringify({ text }));
       setInputMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
@@ -147,28 +221,38 @@ export const RealtimeChat = () => {
         {!isConnected ? (
           <Button 
             onClick={connectWebSocket}
-            className="w-full"
+            className="w-full gap-2"
           >
-            Connect to Chat
+            <PhoneCall />
+            Start Conversation
           </Button>
         ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              sendMessage();
-            }}
-            className="flex gap-2"
-          >
-            <Input
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="Type your message..."
-              disabled={isLoading}
-            />
-            <Button type="submit" disabled={isLoading || !inputMessage.trim()}>
-              Send
+          <div className="flex gap-2">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                sendMessage(inputMessage);
+              }}
+              className="flex gap-2 flex-1"
+            >
+              <Input
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder="Type your message..."
+                disabled={isLoading}
+              />
+              <Button type="submit" disabled={isLoading || !inputMessage.trim()}>
+                Send
+              </Button>
+            </form>
+            <Button
+              type="button"
+              variant={isRecording ? "destructive" : "secondary"}
+              onClick={isRecording ? stopRecording : startRecording}
+            >
+              <Mic className={isRecording ? "animate-pulse" : ""} />
             </Button>
-          </form>
+          </div>
         )}
       </div>
     </div>

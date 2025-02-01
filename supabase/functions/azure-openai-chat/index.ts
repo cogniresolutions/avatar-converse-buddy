@@ -18,6 +18,12 @@ serve(async (req) => {
   try {
     const { messages } = await req.json();
 
+    if (!endpoint || !apiKey) {
+      throw new Error('Azure OpenAI configuration is missing');
+    }
+
+    console.log('Sending request to Azure OpenAI with endpoint:', endpoint);
+
     const response = await fetch(`${endpoint}/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview`, {
       method: 'POST',
       headers: {
@@ -35,6 +41,10 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
+      console.error('Azure OpenAI API error status:', response.status);
+      console.error('Azure OpenAI API error statusText:', response.statusText);
+      const errorText = await response.text();
+      console.error('Azure OpenAI API error response:', errorText);
       throw new Error(`Azure OpenAI API error: ${response.statusText}`);
     }
 

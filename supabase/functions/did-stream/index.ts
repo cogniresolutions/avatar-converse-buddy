@@ -1,5 +1,7 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const apiKey = Deno.env.get('DID_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,6 +9,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -14,16 +17,11 @@ serve(async (req) => {
   try {
     const { text } = await req.json();
     
-    const DID_API_KEY = Deno.env.get('DID_API_KEY');
-    if (!DID_API_KEY) {
-      throw new Error('D-ID API key missing');
-    }
-
-    // Create a talk stream
+    // Create a new talk session
     const response = await fetch('https://api.d-id.com/talks/streams', {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${DID_API_KEY}`,
+        'Authorization': `Basic ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -32,14 +30,24 @@ serve(async (req) => {
           type: "text",
           input: text,
         },
+        config: {
+          stitch: true,
+        },
+        driver_url: "bank://lively/",
+        presenter_config: {
+          crop: { type: "rectangle" }
+        }
       }),
     });
 
+    if (!response.ok) {
+      throw new Error(`D-ID API error: ${response.statusText}`);
+    }
+
     const data = await response.json();
-    
     return new Response(JSON.stringify({
-      streamUrl: data.result.stream_url,
-      sessionId: data.result.id,
+      streamUrl: data.id,
+      sessionId: data.session_id
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

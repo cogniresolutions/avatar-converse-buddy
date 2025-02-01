@@ -1,5 +1,8 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const apiKey = Deno.env.get('AZURE_OPENAI_API_KEY');
+const endpoint = Deno.env.get('AZURE_OPENAI_ENDPOINT');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,37 +10,36 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { messages } = await req.json();
-    
-    const AZURE_OPENAI_ENDPOINT = Deno.env.get('AZURE_OPENAI_ENDPOINT');
-    const AZURE_OPENAI_API_KEY = Deno.env.get('AZURE_OPENAI_API_KEY');
 
-    if (!AZURE_OPENAI_ENDPOINT || !AZURE_OPENAI_API_KEY) {
-      throw new Error('Azure OpenAI configuration missing');
-    }
-
-    const response = await fetch(`${AZURE_OPENAI_ENDPOINT}/openai/deployments/gpt-4/chat/completions?api-version=2023-05-15`, {
+    const response = await fetch(`${endpoint}/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview`, {
       method: 'POST',
       headers: {
+        'api-key': apiKey,
         'Content-Type': 'application/json',
-        'api-key': AZURE_OPENAI_API_KEY,
       },
       body: JSON.stringify({
         messages,
-        temperature: 0.7,
         max_tokens: 800,
+        temperature: 0.7,
+        frequency_penalty: 0,
+        presence_penalty: 0,
+        top_p: 0.95,
       }),
     });
 
-    const data = await response.json();
-    const generatedText = data.choices[0].message.content;
+    if (!response.ok) {
+      throw new Error(`Azure OpenAI API error: ${response.statusText}`);
+    }
 
-    return new Response(JSON.stringify(generatedText), {
+    const data = await response.json();
+    return new Response(JSON.stringify(data.choices[0].message.content), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {

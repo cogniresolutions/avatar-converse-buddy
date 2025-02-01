@@ -24,7 +24,7 @@ serve(async (req) => {
 
     console.log('Sending request to Azure OpenAI with endpoint:', endpoint);
 
-    const response = await fetch(`${endpoint}/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview`, {
+    const response = await fetch(`${endpoint}/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-08-01-preview`, {
       method: 'POST',
       headers: {
         'api-key': apiKey,

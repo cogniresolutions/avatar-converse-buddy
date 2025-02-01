@@ -73,6 +73,10 @@ export function useTrainingSession() {
               });
               // Update local session state with transcript
               setSession(prev => prev ? { ...prev, transcript: payload.new.transcript } : null);
+            } else if (payload.new.status === 'failed') {
+              toast.error('Failed to process video transcript', {
+                description: 'Please try uploading the video again.',
+              });
             }
           }
         )

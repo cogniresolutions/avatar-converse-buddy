@@ -3,7 +3,6 @@ import { VideoPlayer } from "@/components/VideoPlayer";
 import { ChatInterface } from "@/components/ChatInterface";
 import { VideoUploader } from "@/components/VideoUploader";
 import { useTrainingSession } from "@/hooks/useTrainingSession";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function Training() {

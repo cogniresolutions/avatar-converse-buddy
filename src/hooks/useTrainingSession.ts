@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { Database } from "@/integrations/supabase/types";
 
 interface Message {
   content: string;
@@ -42,7 +43,7 @@ export function useTrainingSession() {
 
       // Create session in database
       const { error: dbError, data: sessionData } = await supabase
-        .from("training_sessions")
+        .from('training_sessions')
         .insert({
           user_id: userId,
           title: file.name,

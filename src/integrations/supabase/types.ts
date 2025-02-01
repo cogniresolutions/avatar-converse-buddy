@@ -636,6 +636,39 @@ export type Database = {
           },
         ]
       }
+      training_sessions: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          title: string
+          transcript: string | null
+          updated_at: string
+          user_id: string | null
+          video_url: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          title: string
+          transcript?: string | null
+          updated_at?: string
+          user_id?: string | null
+          video_url: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          title?: string
+          transcript?: string | null
+          updated_at?: string
+          user_id?: string | null
+          video_url?: string
+        }
+        Relationships: []
+      }
       training_videos: {
         Row: {
           analysis_feedback: Json | null

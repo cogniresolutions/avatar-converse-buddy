@@ -15,7 +15,7 @@ export const VideoUploader = ({ onUpload }: VideoUploaderProps) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
 
-  const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+  const MAX_FILE_SIZE = 400 * 1024 * 1024; // 400MB
   const SUPPORTED_FORMATS = ['video/mp4', 'video/webm', 'video/quicktime'];
 
   const validateFile = (file: File) => {
@@ -23,7 +23,7 @@ export const VideoUploader = ({ onUpload }: VideoUploaderProps) => {
       throw new Error('Unsupported file format. Please upload MP4, WebM, or MOV files.');
     }
     if (file.size > MAX_FILE_SIZE) {
-      throw new Error('File is too large. Maximum size is 100MB.');
+      throw new Error('File is too large. Maximum size is 400MB.');
     }
   };
 
@@ -125,7 +125,7 @@ export const VideoUploader = ({ onUpload }: VideoUploaderProps) => {
         Drag and drop your video file here, or click to select
       </p>
       <p className="text-xs text-gray-400 mb-4">
-        Supported formats: MP4, WebM, MOV (Max size: 100MB)
+        Supported formats: MP4, WebM, MOV (Max size: 400MB)
       </p>
       <input
         type="file"

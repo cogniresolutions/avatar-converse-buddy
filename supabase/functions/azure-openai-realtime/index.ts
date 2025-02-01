@@ -6,6 +6,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function processBase64Chunks(base64String: string, chunkSize = 32768) {
+  const chunks: Uint8Array[] = [];
+  let position = 0;
+  
+  while (position < base64String.length) {
+    const chunk = base64String.slice(position, position + chunkSize);
+    const binaryChunk = atob(chunk);
+    const bytes = new Uint8Array(binaryChunk.length);
+    
+    for (let i = 0; i < binaryChunk.length; i++) {
+      bytes[i] = binaryChunk.charCodeAt(i);
+    }
+    
+    chunks.push(bytes);
+    position += chunkSize;
+  }
+
+  const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  return result;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -15,11 +44,12 @@ serve(async (req) => {
   try {
     const AZURE_OPENAI_API_KEY = Deno.env.get('AZURE_OPENAI_API_KEY');
     const AZURE_OPENAI_ENDPOINT = Deno.env.get('AZURE_OPENAI_ENDPOINT');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
-    if (!AZURE_OPENAI_API_KEY || !AZURE_OPENAI_ENDPOINT) {
-      console.error('Azure OpenAI configuration is missing');
+    if (!AZURE_OPENAI_API_KEY || !AZURE_OPENAI_ENDPOINT || !OPENAI_API_KEY) {
+      console.error('API configuration is missing');
       return new Response(
-        JSON.stringify({ error: 'Azure OpenAI configuration is missing' }), 
+        JSON.stringify({ error: 'API configuration is missing' }), 
         { 
           status: 500,
           headers: {
@@ -46,41 +76,74 @@ serve(async (req) => {
             const message = JSON.parse(event.data);
             console.log("Received message:", message);
 
-            const response = await fetch(`${AZURE_OPENAI_ENDPOINT}/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'api-key': AZURE_OPENAI_API_KEY,
-              },
-              body: JSON.stringify({
-                messages: [
-                  { role: "system", content: "You are a helpful AI assistant." },
-                  { role: "user", content: message.text }
-                ],
-                stream: true,
-              }),
-            });
+            // Handle audio data if present
+            if (message.audio) {
+              try {
+                const binaryAudio = processBase64Chunks(message.audio);
+                const formData = new FormData();
+                const blob = new Blob([binaryAudio], { type: 'audio/webm' });
+                formData.append('file', blob, 'audio.webm');
+                formData.append('model', 'whisper-1');
 
-            if (!response.ok) {
-              throw new Error(`Azure OpenAI API error: ${response.status}`);
+                const transcriptionResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                  },
+                  body: formData,
+                });
+
+                if (!transcriptionResponse.ok) {
+                  throw new Error(`Whisper API error: ${transcriptionResponse.status}`);
+                }
+
+                const transcriptionResult = await transcriptionResponse.json();
+                message.text = transcriptionResult.text;
+              } catch (error) {
+                console.error('Error processing audio:', error);
+                socket.send(JSON.stringify({ error: 'Failed to process audio' }));
+                return;
+              }
             }
 
-            const reader = response.body?.getReader();
-            if (!reader) {
-              throw new Error('No response body reader available');
-            }
+            // Process the text message with Azure OpenAI
+            if (message.text) {
+              const response = await fetch(`${AZURE_OPENAI_ENDPOINT}/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'api-key': AZURE_OPENAI_API_KEY,
+                },
+                body: JSON.stringify({
+                  messages: [
+                    { role: "system", content: "You are a helpful AI assistant." },
+                    { role: "user", content: message.text }
+                  ],
+                  stream: true,
+                }),
+              });
 
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
+              if (!response.ok) {
+                throw new Error(`Azure OpenAI API error: ${response.status}`);
+              }
 
-              const chunk = new TextDecoder().decode(value);
-              const lines = chunk.split('\n');
-              
-              for (const line of lines) {
-                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                  const jsonData = JSON.parse(line.replace('data: ', ''));
-                  socket.send(JSON.stringify(jsonData));
+              const reader = response.body?.getReader();
+              if (!reader) {
+                throw new Error('No response body reader available');
+              }
+
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = new TextDecoder().decode(value);
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                  if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                    const jsonData = JSON.parse(line.replace('data: ', ''));
+                    socket.send(JSON.stringify(jsonData));
+                  }
                 }
               }
             }
@@ -114,7 +177,7 @@ serve(async (req) => {
       }
     }
 
-    // For non-WebSocket requests, always use WSS protocol and the correct host
+    // For non-WebSocket requests, return the WebSocket URL
     const host = req.headers.get('host') || 'kzubwatryfgonzuzldej.supabase.co';
     const wsUrl = `wss://${host}/functions/v1/azure-openai-realtime`;
     

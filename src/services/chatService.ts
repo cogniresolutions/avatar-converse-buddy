@@ -5,7 +5,7 @@ import { Message, SessionConfig } from "./types";
 class ChatService {
   private sessionManager: SessionManager;
   private messages: Message[] = [];
-  private videoEndpoint: string = 'persona--zw6su7w.graygrass-5ab083e6.eastus.azurecontainerapps.io';
+  private videoEndpoint: string = 'tavus.video/943ec60143';
   private isSecure: boolean = true;
 
   constructor() {

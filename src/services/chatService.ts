@@ -27,9 +27,8 @@ class ChatService {
     }
 
     try {
-      // Use Supabase project URL for WebSocket connection
-      const projectId = 'kzubwatryfgonzuzldej';
-      const wsUrl = `wss://${projectId}.supabase.co/functions/v1/did-stream`;
+      // Use Azure Container app endpoint for video stream
+      const wsUrl = `wss://persona--zw6su7w.graygrass-5ab083e6.eastus.azurecontainerapps.io/video`;
 
       console.log('Attempting to connect to WebSocket:', wsUrl);
       this.ws = new WebSocket(wsUrl);
@@ -37,6 +36,10 @@ class ChatService {
       this.ws.onopen = () => {
         console.log('WebSocket connected successfully');
         this.reconnectAttempts = 0;
+        // Set initial video URL
+        const videoUrl = 'https://persona--zw6su7w.graygrass-5ab083e6.eastus.azurecontainerapps.io/video';
+        this.currentStreamUrl = videoUrl;
+        this.onStreamUpdate?.(videoUrl);
       };
 
       this.ws.onmessage = (event) => {
@@ -80,9 +83,9 @@ class ChatService {
       // Get AI response from Azure OpenAI
       const aiResponseText = await azureOpenAIService.sendMessage(content);
       
-      // Send the AI response to D-ID through WebSocket
+      // Send the AI response to WebSocket
       if (this.ws?.readyState === WebSocket.OPEN) {
-        console.log('Sending message to D-ID:', aiResponseText);
+        console.log('Sending message to WebSocket:', aiResponseText);
         this.ws.send(JSON.stringify({ text: aiResponseText }));
       } else {
         console.error('WebSocket is not connected');

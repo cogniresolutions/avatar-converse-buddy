@@ -24,7 +24,7 @@ serve(async (req) => {
 
     console.log('Creating D-ID talk with text:', text);
     
-    // Create a new talk
+    // Create a new talk using the provided agent URL
     const response = await fetch('https://api.d-id.com/talks', {
       method: 'POST',
       headers: {
@@ -32,7 +32,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        source_url: "https://create-images-results.d-id.com/DefaultPresenters/Emma_f/image.jpeg",
+        source_url: "https://studio.d-id.com/agents/share?id=agt_OJ7yOzVG&utm_source=copy&key=WjI5dloyeGxMVzloZFhSb01ud3hNVEkyTXpRek9EWTRNalEzTnprd01ETTFPVGs2TFVrdFpsZDNZbTVPYmxCYVNGRmhhMGh0Vm5scQ==",
         script: {
           type: "text",
           input: text,

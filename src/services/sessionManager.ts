@@ -47,25 +47,17 @@ export class SessionManager {
       this.connectionState = 'connecting';
       this.ws = new WebSocket(wsUrl);
 
-      const connectionTimeout = setTimeout(() => {
-        if (this.connectionState === 'connecting') {
-          console.warn('WebSocket connection timeout, attempting reconnection...');
-          this.ws?.close();
-        }
-      }, 5000);
-
-      this.setupWebSocketHandlers(connectionTimeout);
+      this.setupWebSocketHandlers();
     } catch (error) {
       console.error('Error setting up WebSocket:', error);
       this.handleReconnection();
     }
   }
 
-  private setupWebSocketHandlers(connectionTimeout: NodeJS.Timeout): void {
+  private setupWebSocketHandlers(): void {
     if (!this.ws) return;
 
     this.ws.onopen = () => {
-      clearTimeout(connectionTimeout);
       console.log('WebSocket connected successfully');
       this.connectionState = 'connected';
       this.reconnectAttempts = 0;
@@ -104,7 +96,6 @@ export class SessionManager {
     };
 
     this.ws.onclose = (event) => {
-      clearTimeout(connectionTimeout);
       console.log('WebSocket closed with code:', event.code, 'reason:', event.reason);
       this.handleReconnection();
     };

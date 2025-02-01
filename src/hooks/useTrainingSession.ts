@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
+import { toast } from "sonner";
 
 interface Message {
   content: string;
@@ -19,7 +20,7 @@ export function useTrainingSession() {
   const [session, setSession] = useState<TrainingSession | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  const { toast: shadowToast } = useToast();
 
   const uploadVideo = async (file: File) => {
     try {
@@ -54,6 +55,29 @@ export function useTrainingSession() {
 
       if (dbError) throw dbError;
 
+      // Set up realtime subscription for transcript updates
+      const channel = supabase
+        .channel('schema-db-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'training_sessions',
+            filter: `id=eq.${sessionData.id}`,
+          },
+          (payload) => {
+            if (payload.new.transcript) {
+              toast.success('Video transcript processing complete!', {
+                description: 'You can now ask questions about the video content.',
+              });
+              // Update local session state with transcript
+              setSession(prev => prev ? { ...prev, transcript: payload.new.transcript } : null);
+            }
+          }
+        )
+        .subscribe();
+
       // Process transcript (this will be handled by a background job)
       await supabase.functions.invoke("process-video-transcript", {
         body: { sessionId: sessionData.id },
@@ -62,6 +86,10 @@ export function useTrainingSession() {
       setSession({
         id: sessionData.id,
         videoUrl: publicUrl,
+      });
+
+      toast.info('Processing video transcript...', {
+        description: 'This may take a few minutes. You will be notified when it\'s ready.',
       });
 
     } catch (error) {
@@ -92,7 +120,7 @@ export function useTrainingSession() {
       setMessages(prev => [...prev, { content: data.answer, isAi: true }]);
     } catch (error) {
       console.error("Error sending question:", error);
-      toast({
+      shadowToast({
         title: "Error",
         description: "Failed to get answer. Please try again.",
         variant: "destructive",

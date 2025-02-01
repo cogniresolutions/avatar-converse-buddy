@@ -15,6 +15,7 @@ class ChatService {
   private maxReconnectAttempts: number = 5;
   private reconnectDelay: number = 2000;
   private baseUrl: string = 'persona--zw6su7w.graygrass-5ab083e6.eastus.azurecontainerapps.io';
+  private isSecure: boolean = true; // Force secure connections
 
   constructor() {
     this.sessionId = crypto.randomUUID();
@@ -22,26 +23,23 @@ class ChatService {
   }
 
   private setupWebSocket() {
+    // Always set up the initial video URL first
+    const protocol = this.isSecure ? 'https' : 'http';
+    const videoUrl = `${protocol}://${this.baseUrl}/video`;
+    this.currentStreamUrl = videoUrl;
+    this.onStreamUpdate?.(videoUrl);
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
-      // Set the initial video URL even if WebSocket fails
-      const videoUrl = `https://${this.baseUrl}/video`;
-      this.currentStreamUrl = videoUrl;
-      this.onStreamUpdate?.(videoUrl);
+      console.error('Max reconnection attempts reached, falling back to HTTP-only mode');
       return;
     }
 
     try {
-      // Set initial video URL immediately
-      const videoUrl = `https://${this.baseUrl}/video`;
-      this.currentStreamUrl = videoUrl;
-      this.onStreamUpdate?.(videoUrl);
-
-      // Create WebSocket URL
-      const wsUrl = `wss://${this.baseUrl}/video`;
+      // Create WebSocket URL with secure protocol
+      const wsProtocol = this.isSecure ? 'wss' : 'ws';
+      const wsUrl = `${wsProtocol}://${this.baseUrl}/video`;
       console.log('Attempting to connect to WebSocket:', wsUrl);
       
-      // Try WebSocket connection for real-time updates
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
@@ -73,7 +71,10 @@ class ChatService {
       this.ws.onclose = () => {
         console.log('WebSocket closed, attempting to reconnect...');
         this.reconnectAttempts++;
-        setTimeout(() => this.setupWebSocket(), this.reconnectDelay);
+        
+        // Use exponential backoff for reconnection
+        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
+        setTimeout(() => this.setupWebSocket(), delay);
       };
     } catch (error) {
       console.error('Error setting up WebSocket:', error);
@@ -95,8 +96,7 @@ class ChatService {
         console.log('Sending message to WebSocket:', aiResponseText);
         this.ws.send(JSON.stringify({ text: aiResponseText }));
       } else {
-        console.error('WebSocket is not connected');
-        this.setupWebSocket();
+        console.warn('WebSocket is not connected, message will not be synchronized with video');
       }
       
       const aiResponse: Message = {

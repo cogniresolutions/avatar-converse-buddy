@@ -14,7 +14,9 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Starting video transcript processing...");
     const { sessionId } = await req.json();
+    console.log("Session ID:", sessionId);
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -28,11 +30,15 @@ serve(async (req) => {
       .eq("id", sessionId)
       .single();
 
-    if (sessionError) throw sessionError;
+    if (sessionError) {
+      console.error("Error fetching session:", sessionError);
+      throw sessionError;
+    }
 
-    console.log("Processing video:", session.video_url);
+    console.log("Processing video URL:", session.video_url);
 
     // Get Azure Speech Service token
+    console.log("Requesting Azure Speech Service token...");
     const tokenResponse = await fetch(
       `${Deno.env.get("AZURE_SPEECH_ENDPOINT")}/sts/v1.0/issuetoken`,
       {
@@ -44,12 +50,15 @@ serve(async (req) => {
     );
 
     if (!tokenResponse.ok) {
+      console.error("Failed to get Azure token:", await tokenResponse.text());
       throw new Error("Failed to get Azure token");
     }
 
     const accessToken = await tokenResponse.text();
+    console.log("Successfully obtained Azure token");
 
     // Create transcription request
+    console.log("Creating transcription request...");
     const transcriptionResponse = await fetch(
       `${Deno.env.get("AZURE_SPEECH_ENDPOINT")}/speechtotext/v3.0/transcriptions`,
       {
@@ -72,6 +81,7 @@ serve(async (req) => {
     );
 
     if (!transcriptionResponse.ok) {
+      console.error("Failed to start transcription:", await transcriptionResponse.text());
       throw new Error("Failed to start transcription");
     }
 
@@ -83,7 +93,11 @@ serve(async (req) => {
       (async () => {
         try {
           let transcriptionComplete = false;
-          while (!transcriptionComplete) {
+          let attempts = 0;
+          while (!transcriptionComplete && attempts < 60) { // Max 30 minutes
+            attempts++;
+            console.log(`Checking transcription status (attempt ${attempts})...`);
+            
             // Check status every 30 seconds
             await new Promise((resolve) => setTimeout(resolve, 30000));
 
@@ -94,6 +108,7 @@ serve(async (req) => {
             });
 
             if (!statusResponse.ok) {
+              console.error("Failed to check status:", await statusResponse.text());
               throw new Error("Failed to check transcription status");
             }
 
@@ -101,6 +116,7 @@ serve(async (req) => {
             console.log("Transcription status:", status.status);
 
             if (status.status === "Succeeded") {
+              console.log("Transcription completed successfully");
               // Get the transcript
               const filesResponse = await fetch(status.links.files, {
                 headers: {
@@ -109,17 +125,22 @@ serve(async (req) => {
               });
 
               if (!filesResponse.ok) {
+                console.error("Failed to get transcript files:", await filesResponse.text());
                 throw new Error("Failed to get transcript files");
               }
 
               const files = await filesResponse.json();
+              console.log("Transcript files:", files);
+              
               const transcriptUrl = files.values.find(
                 (f: any) => f.kind === "Transcription"
               )?.links?.contentUrl;
 
               if (transcriptUrl) {
+                console.log("Fetching transcript from:", transcriptUrl);
                 const transcriptResponse = await fetch(transcriptUrl);
                 const transcript = await transcriptResponse.text();
+                console.log("Transcript retrieved, length:", transcript.length);
 
                 // Update the session with the transcript
                 const { error: updateError } = await supabaseClient
@@ -127,12 +148,21 @@ serve(async (req) => {
                   .update({ transcript })
                   .eq("id", sessionId);
 
-                if (updateError) throw updateError;
+                if (updateError) {
+                  console.error("Error updating session:", updateError);
+                  throw updateError;
+                }
+                console.log("Session updated with transcript");
                 transcriptionComplete = true;
               }
             } else if (status.status === "Failed") {
+              console.error("Transcription failed with status:", status);
               throw new Error("Transcription failed");
             }
+          }
+          
+          if (!transcriptionComplete) {
+            console.error("Transcription timed out after 30 minutes");
           }
         } catch (error) {
           console.error("Background task error:", error);
@@ -140,6 +170,7 @@ serve(async (req) => {
       })()
     );
 
+    console.log("Transcription process initiated successfully");
     return new Response(
       JSON.stringify({ message: "Transcript processing started" }),
       {

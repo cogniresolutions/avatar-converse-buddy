@@ -33,9 +33,13 @@ export const RealtimeChat = () => {
 
   const connectWebSocket = async () => {
     try {
+      setIsLoading(true);
       const { data, error } = await supabase.functions.invoke('azure-openai-realtime');
       
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
+
       if (!data?.url) {
         throw new Error('WebSocket URL not received from server');
       }
@@ -79,6 +83,11 @@ export const RealtimeChat = () => {
           }
         } catch (error) {
           console.error('Error parsing message:', error);
+          toast({
+            title: "Error",
+            description: "Failed to process message",
+            variant: "destructive",
+          });
         }
       };
 
@@ -97,6 +106,7 @@ export const RealtimeChat = () => {
           description: "Failed to connect to chat service",
           variant: "destructive",
         });
+        setIsConnected(false);
       };
     } catch (error) {
       console.error('Error connecting to WebSocket:', error);
@@ -106,6 +116,8 @@ export const RealtimeChat = () => {
         variant: "destructive",
       });
       setIsConnected(false);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -207,6 +219,7 @@ export const RealtimeChat = () => {
           onClick={isConnected ? () => wsRef.current?.close() : connectWebSocket}
           className="w-full gap-2"
           variant={isConnected ? "destructive" : "default"}
+          disabled={isLoading}
         >
           {isConnected ? (
             <>
@@ -216,7 +229,7 @@ export const RealtimeChat = () => {
           ) : (
             <>
               <PhoneCall className="w-4 h-4" />
-              Start Call
+              {isLoading ? 'Connecting...' : 'Start Call'}
             </>
           )}
         </Button>

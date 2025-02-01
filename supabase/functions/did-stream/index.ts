@@ -32,7 +32,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        source_url: "https://studio.d-id.com/agents/share?id=agt_OJ7yOzVG&utm_source=copy&key=WjI5dloyeGxMVzloZFhSb01ud3hNVEkyTXpRek9EWTRNalEzTnprd01ETTFPVGs2TFVrdFpsZDNZbTVPYmxCYVNGRmhhMGh0Vm5scQ==",
+        source_url: "bank://lively/",
         script: {
           type: "text",
           input: text,

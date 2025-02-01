@@ -16,6 +16,17 @@ const Index = () => {
   const [streamUrl, setStreamUrl] = useState<string>();
   const { toast } = useToast();
 
+  useEffect(() => {
+    // Set up stream URL update callback
+    chatService.setStreamUpdateCallback((url) => {
+      setStreamUrl(url);
+    });
+
+    return () => {
+      chatService.cleanup();
+    };
+  }, []);
+
   const handleSendMessage = async (content: string) => {
     try {
       setIsLoading(true);
@@ -27,10 +38,6 @@ const Index = () => {
       
       // Add AI response to messages
       setMessages((prev) => [...prev, response]);
-      
-      // Update video stream URL
-      const currentStreamUrl = chatService.getCurrentStreamUrl();
-      setStreamUrl(currentStreamUrl || undefined);
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
       toast({
@@ -42,13 +49,6 @@ const Index = () => {
       setIsLoading(false);
     }
   };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      chatService.cleanup();
-    };
-  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white">

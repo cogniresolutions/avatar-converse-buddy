@@ -33,9 +33,14 @@ export const RealtimeChat = () => {
 
   const connectWebSocket = async () => {
     try {
-      const { data: { url } } = await supabase.functions.invoke('azure-openai-realtime');
+      const { data, error } = await supabase.functions.invoke('azure-openai-realtime');
       
-      wsRef.current = new WebSocket(url);
+      if (error) throw error;
+      if (!data?.url) {
+        throw new Error('WebSocket URL not received from server');
+      }
+      
+      wsRef.current = new WebSocket(data.url);
       
       wsRef.current.onopen = () => {
         setIsConnected(true);
@@ -100,6 +105,7 @@ export const RealtimeChat = () => {
         description: error instanceof Error ? error.message : "Failed to connect to chat service",
         variant: "destructive",
       });
+      setIsConnected(false);
     }
   };
 

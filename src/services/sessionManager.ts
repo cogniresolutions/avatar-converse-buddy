@@ -41,7 +41,8 @@ export class SessionManager {
 
     try {
       const wsProtocol = this.config.isSecure ? 'wss' : 'ws';
-      const wsUrl = `${wsProtocol}://${this.config.videoEndpoint}/video?session=${this.sessionId}`;
+      // Remove the /video path from the WebSocket URL as it's already in the endpoint
+      const wsUrl = `${wsProtocol}://${this.config.videoEndpoint}?session=${this.sessionId}`;
       console.log('Attempting WebSocket connection to:', wsUrl);
       
       this.connectionState = 'connecting';
@@ -63,10 +64,12 @@ export class SessionManager {
       this.reconnectAttempts = 0;
       
       // Send initial session setup message
-      this.ws?.send(JSON.stringify({
+      const initMessage: WebSocketMessage = {
         type: 'init',
         sessionId: this.sessionId
-      }));
+      };
+      console.log('Sending init message:', initMessage);
+      this.ws?.send(JSON.stringify(initMessage));
     };
 
     this.ws.onmessage = (event) => {
@@ -92,7 +95,6 @@ export class SessionManager {
     this.ws.onerror = (error) => {
       console.error('WebSocket error:', error);
       this.connectionState = 'disconnected';
-      this.handleReconnection();
     };
 
     this.ws.onclose = (event) => {
@@ -123,12 +125,13 @@ export class SessionManager {
 
   public sendMessage(text: string): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      console.log('Sending message to WebSocket:', text);
-      this.ws.send(JSON.stringify({
+      const message: WebSocketMessage = {
         type: 'message',
         sessionId: this.sessionId,
         text
-      }));
+      };
+      console.log('Sending message to WebSocket:', message);
+      this.ws.send(JSON.stringify(message));
     } else {
       console.warn(`Cannot send message - WebSocket state: ${this.ws?.readyState}, Connection state: ${this.connectionState}`);
     }

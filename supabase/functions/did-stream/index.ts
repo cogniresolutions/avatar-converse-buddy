@@ -50,6 +50,8 @@ serve(async (req) => {
             },
             config: {
               stitch: true,
+              result_format: "mp4",
+              streaming: true
             },
             driver_url: "bank://lively/",
             presenter_config: {
@@ -58,21 +60,17 @@ serve(async (req) => {
           }),
         });
 
-        const responseText = await response.text();
-        console.log('D-ID API Response:', response.status, responseText);
-
         if (!response.ok) {
-          throw new Error(`D-ID API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`);
+          const errorText = await response.text();
+          console.error('D-ID API error:', response.status, errorText);
+          socket.send(JSON.stringify({ error: `D-ID API error: ${response.status} ${errorText}` }));
+          return;
         }
 
-        let data;
-        try {
-          data = JSON.parse(responseText);
-        } catch (e) {
-          console.error('Failed to parse D-ID API response:', e);
-          throw new Error('Invalid response from D-ID API');
-        }
+        const data = await response.json();
+        console.log('D-ID API Response:', data);
 
+        // Send the stream URL back to the client
         socket.send(JSON.stringify({
           id: data.id,
           url: data.result_url
@@ -83,6 +81,14 @@ serve(async (req) => {
       }
     };
 
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    socket.onclose = () => {
+      console.log('WebSocket connection closed');
+    };
+
     return response;
   }
 
@@ -91,12 +97,9 @@ serve(async (req) => {
     const { text } = await req.json();
     
     if (!apiKey) {
-      console.error('DID_API_KEY is not set');
       throw new Error('DID API key is not configured');
     }
 
-    console.log('Creating D-ID talk with text:', text);
-    
     const response = await fetch('https://api.d-id.com/talks', {
       method: 'POST',
       headers: {
@@ -115,6 +118,8 @@ serve(async (req) => {
         },
         config: {
           stitch: true,
+          result_format: "mp4",
+          streaming: true
         },
         driver_url: "bank://lively/",
         presenter_config: {
@@ -123,21 +128,12 @@ serve(async (req) => {
       }),
     });
 
-    const responseText = await response.text();
-    console.log('D-ID API Response:', response.status, responseText);
-
     if (!response.ok) {
-      throw new Error(`D-ID API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`);
+      throw new Error(`D-ID API error: ${response.status} ${await response.text()}`);
     }
 
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (e) {
-      console.error('Failed to parse D-ID API response:', e);
-      throw new Error('Invalid response from D-ID API');
-    }
-
+    const data = await response.json();
+    
     return new Response(JSON.stringify({
       id: data.id,
       url: data.result_url

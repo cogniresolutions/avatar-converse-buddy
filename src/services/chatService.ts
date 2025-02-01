@@ -11,6 +11,9 @@ class ChatService {
   private currentStreamUrl: string | null = null;
   private ws: WebSocket | null = null;
   private onStreamUpdate: ((url: string) => void) | null = null;
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 5;
+  private reconnectDelay: number = 2000;
 
   constructor() {
     this.sessionId = crypto.randomUUID();
@@ -18,32 +21,50 @@ class ChatService {
   }
 
   private setupWebSocket() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('Max reconnection attempts reached');
+      return;
+    }
+
     const wsUrl = import.meta.env.PROD 
       ? `wss://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/did-stream`
       : 'ws://localhost:54321/functions/v1/did-stream';
 
-    this.ws = new WebSocket(wsUrl);
+    try {
+      this.ws = new WebSocket(wsUrl);
 
-    this.ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.error) {
-        console.error('WebSocket error:', data.error);
-        return;
-      }
-      if (data.url) {
-        this.currentStreamUrl = data.url;
-        this.onStreamUpdate?.(data.url);
-      }
-    };
+      this.ws.onopen = () => {
+        console.log('WebSocket connected successfully');
+        this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+      };
 
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
+      this.ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.error) {
+          console.error('WebSocket error:', data.error);
+          return;
+        }
+        if (data.url) {
+          console.log('Received new stream URL:', data.url);
+          this.currentStreamUrl = data.url;
+          this.onStreamUpdate?.(data.url);
+        }
+      };
 
-    this.ws.onclose = () => {
-      console.log('WebSocket closed, attempting to reconnect...');
-      setTimeout(() => this.setupWebSocket(), 5000);
-    };
+      this.ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+
+      this.ws.onclose = () => {
+        console.log('WebSocket closed, attempting to reconnect...');
+        this.reconnectAttempts++;
+        setTimeout(() => this.setupWebSocket(), this.reconnectDelay);
+      };
+    } catch (error) {
+      console.error('Error setting up WebSocket:', error);
+      this.reconnectAttempts++;
+      setTimeout(() => this.setupWebSocket(), this.reconnectDelay);
+    }
   }
 
   async sendMessage(content: string): Promise<Message> {
@@ -56,9 +77,12 @@ class ChatService {
       
       // Send the AI response to D-ID through WebSocket
       if (this.ws?.readyState === WebSocket.OPEN) {
+        console.log('Sending message to D-ID:', aiResponseText);
         this.ws.send(JSON.stringify({ text: aiResponseText }));
       } else {
-        console.error('WebSocket is not connected');
+        console.error('WebSocket is not connected, attempting to reconnect...');
+        this.setupWebSocket();
+        throw new Error('WebSocket connection is not available');
       }
       
       const aiResponse: Message = {
@@ -96,6 +120,7 @@ class ChatService {
       this.ws = null;
     }
     this.currentStreamUrl = null;
+    this.reconnectAttempts = 0;
   }
 }
 

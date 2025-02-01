@@ -1,4 +1,4 @@
-import { ConnectionState, SessionConfig } from './types';
+import { ConnectionState, SessionConfig, WebSocketMessage } from './types';
 
 export class SessionManager {
   private sessionId: string;
@@ -42,13 +42,14 @@ export class SessionManager {
     try {
       const wsProtocol = this.config.isSecure ? 'wss' : 'ws';
       const wsUrl = `${wsProtocol}://${this.config.videoEndpoint}/video?session=${this.sessionId}`;
+      console.log('Attempting WebSocket connection to:', wsUrl);
       
       this.connectionState = 'connecting';
       this.ws = new WebSocket(wsUrl);
 
       const connectionTimeout = setTimeout(() => {
         if (this.connectionState === 'connecting') {
-          console.warn('WebSocket connection timeout, will retry');
+          console.warn('WebSocket connection timeout, attempting reconnection...');
           this.ws?.close();
         }
       }, 5000);
@@ -69,6 +70,7 @@ export class SessionManager {
       this.connectionState = 'connected';
       this.reconnectAttempts = 0;
       
+      // Send initial session setup message
       this.ws?.send(JSON.stringify({
         type: 'init',
         sessionId: this.sessionId
@@ -77,11 +79,14 @@ export class SessionManager {
 
     this.ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
+        const data = JSON.parse(event.data) as WebSocketMessage;
+        console.log('Received WebSocket message:', data);
+        
         if (data.error) {
-          console.error('WebSocket error:', data.error);
+          console.error('WebSocket message error:', data.error);
           return;
         }
+        
         if (data.url) {
           console.log('Received new stream URL:', data.url);
           this.currentStreamUrl = data.url;
@@ -98,22 +103,31 @@ export class SessionManager {
       this.handleReconnection();
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (event) => {
       clearTimeout(connectionTimeout);
-      console.log('WebSocket closed');
+      console.log('WebSocket closed with code:', event.code, 'reason:', event.reason);
       this.handleReconnection();
     };
   }
 
   private handleReconnection(): void {
-    if (this.connectionState === 'failed') return;
+    if (this.connectionState === 'failed') {
+      console.log('Connection already failed, skipping reconnection');
+      return;
+    }
     
     this.connectionState = 'disconnected';
     this.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
     
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
     console.log(`Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
-    setTimeout(() => this.setupWebSocket(), delay);
+    
+    setTimeout(() => {
+      if (this.connectionState !== 'failed') {
+        console.log('Initiating reconnection attempt...');
+        this.setupWebSocket();
+      }
+    }, delay);
   }
 
   public sendMessage(text: string): void {
@@ -125,7 +139,7 @@ export class SessionManager {
         text
       }));
     } else {
-      console.warn(`WebSocket is not connected (State: ${this.connectionState})`);
+      console.warn(`Cannot send message - WebSocket state: ${this.ws?.readyState}, Connection state: ${this.connectionState}`);
     }
   }
 

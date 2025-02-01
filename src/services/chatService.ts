@@ -26,15 +26,19 @@ class ChatService {
       return;
     }
 
-    // Construct WebSocket URL based on environment
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // In production, use the relative path to avoid CORS issues
     const wsUrl = import.meta.env.PROD 
-      ? `${wsProtocol}//${window.location.host}/functions/v1/did-stream`
+      ? `/functions/v1/did-stream`
       : 'ws://localhost:54321/functions/v1/did-stream';
 
     try {
-      console.log('Attempting to connect to WebSocket:', wsUrl);
-      this.ws = new WebSocket(wsUrl);
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const fullUrl = import.meta.env.PROD 
+        ? `${protocol}//${window.location.host}${wsUrl}`
+        : wsUrl;
+
+      console.log('Attempting to connect to WebSocket:', fullUrl);
+      this.ws = new WebSocket(fullUrl);
 
       this.ws.onopen = () => {
         console.log('WebSocket connected successfully');

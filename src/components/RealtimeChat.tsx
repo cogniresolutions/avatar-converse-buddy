@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { PhoneCall, Mic } from 'lucide-react';
+import { PhoneCall, Mic, PhoneOff } from 'lucide-react';
 
 interface Message {
   text: string;
@@ -196,6 +196,26 @@ export const RealtimeChat = () => {
 
   return (
     <div className="flex flex-col h-[600px] border rounded-lg overflow-hidden bg-white">
+      <div className="p-4 border-b bg-secondary/10">
+        <Button 
+          onClick={isConnected ? () => wsRef.current?.close() : connectWebSocket}
+          className="w-full gap-2"
+          variant={isConnected ? "destructive" : "default"}
+        >
+          {isConnected ? (
+            <>
+              <PhoneOff className="w-4 h-4" />
+              End Call
+            </>
+          ) : (
+            <>
+              <PhoneCall className="w-4 h-4" />
+              Start Call
+            </>
+          )}
+        </Button>
+      </div>
+
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           {messages.map((message, index) => (
@@ -217,16 +237,8 @@ export const RealtimeChat = () => {
         </div>
       </ScrollArea>
 
-      <div className="p-4 border-t">
-        {!isConnected ? (
-          <Button 
-            onClick={connectWebSocket}
-            className="w-full gap-2"
-          >
-            <PhoneCall />
-            Start Conversation
-          </Button>
-        ) : (
+      {isConnected && (
+        <div className="p-4 border-t">
           <div className="flex gap-2">
             <form
               onSubmit={(e) => {
@@ -253,8 +265,8 @@ export const RealtimeChat = () => {
               <Mic className={isRecording ? "animate-pulse" : ""} />
             </Button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
